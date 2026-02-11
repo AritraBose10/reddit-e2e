@@ -14,6 +14,7 @@ export interface RedditPost {
 export interface SearchParams {
     keywords: string;
     sort: 'top' | 'hot';
+    time?: string;
 }
 
 export interface SearchResponse {
@@ -49,4 +50,11 @@ export type SortDirection = 'asc' | 'desc';
 export interface SortConfig {
     field: SortField;
     direction: SortDirection;
+}
+
+export interface ContentIdea {
+    hook: string;
+    concept: string;
+    why: string;
+    cta: string;
 }

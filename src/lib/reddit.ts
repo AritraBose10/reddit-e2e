@@ -6,8 +6,15 @@
 import axios from 'axios';
 import { RedditPost } from '@/types';
 
-const REDDIT_SEARCH_URL = 'https://www.reddit.com/search.json';
+const REDDIT_API_BASE = 'https://www.reddit.com';
 const USER_AGENT = 'RedditSearchTool/1.0 (Web App)';
+
+export interface RedditComment {
+    body: string;
+    author: string;
+    score: number;
+    replies?: RedditComment[];
+}
 
 interface RedditApiChild {
     data: {
@@ -36,10 +43,18 @@ interface RedditApiResponse {
  */
 export async function fetchRedditPosts(
     keywords: string,
-    sort: 'top' | 'hot'
+    sort: 'top' | 'hot',
+    time?: string
 ): Promise<RedditPost[]> {
     const allPosts: RedditPost[] = [];
     let after: string | null = null;
+
+    // Determine the 't' parameter for Reddit API
+    // If '15d' (custom) is selected, we fetch 'month' and filter manually.
+    let tParam = time || 'all';
+    if (time === '15d') {
+        tParam = 'month';
+    }
 
     // Reddit often returns ~25 results per page, so we paginate to reach 100
     const maxPages = 4;
@@ -49,7 +64,7 @@ export async function fetchRedditPosts(
             q: keywords,
             limit: '100',
             sort,
-            t: 'all',
+            t: tParam,
             type: 'link',
             raw_json: '1',
         };
@@ -58,7 +73,7 @@ export async function fetchRedditPosts(
             params.after = after;
         }
 
-        const response = await axios.get<RedditApiResponse>(REDDIT_SEARCH_URL, {
+        const response = await axios.get<RedditApiResponse>(`${REDDIT_API_BASE}/search.json`, {
             params,
             headers: {
                 'User-Agent': USER_AGENT,
@@ -70,18 +85,26 @@ export async function fetchRedditPosts(
 
         if (children.length === 0) break;
 
-        const posts = children.map((child: RedditApiChild): RedditPost => ({
-            id: child.data.id,
-            title: child.data.title,
-            upvotes: child.data.score,
-            comments: child.data.num_comments,
-            link: `https://www.reddit.com${child.data.permalink}`,
-            subreddit: child.data.subreddit_name_prefixed,
-            created: new Date(child.data.created_utc * 1000).toISOString(),
-            author: child.data.author,
-        }));
+        for (const child of children) {
+            const postTime = child.data.created_utc * 1000;
 
-        allPosts.push(...posts);
+            // Custom filtering for 15 days
+            if (time === '15d') {
+                const fifteenDaysAgo = Date.now() - (15 * 24 * 60 * 60 * 1000);
+                if (postTime < fifteenDaysAgo) continue;
+            }
+
+            allPosts.push({
+                id: child.data.id,
+                title: child.data.title,
+                upvotes: child.data.score,
+                comments: child.data.num_comments,
+                link: `https://www.reddit.com${child.data.permalink}`,
+                subreddit: child.data.subreddit_name_prefixed,
+                created: new Date(postTime).toISOString(),
+                author: child.data.author,
+            });
+        }
 
         // Stop if we have enough or no more pages
         after = response.data?.data?.after;
@@ -97,4 +120,54 @@ export async function fetchRedditPosts(
     return allPosts
         .sort((a, b) => b.upvotes - a.upvotes)
         .slice(0, 100);
+}
+
+/**
+ * Fetch details (comments) for a specific Reddit post.
+ */
+export async function getPostDetails(permalink: string): Promise<string> {
+    try {
+        // Remove trailing slash to avoid redirect issues sometimes
+        const cleanPermalink = permalink.endsWith('/') ? permalink.slice(0, -1) : permalink;
+        // Reddit API requires .json extension
+        const url = `${REDDIT_API_BASE}${cleanPermalink}.json`;
+
+        console.log(`Fetching comments from: ${url}`);
+
+        const response = await axios.get(url, {
+            headers: {
+                'User-Agent': USER_AGENT,
+            },
+        });
+
+        if (!response.data || !Array.isArray(response.data) || response.data.length < 2) {
+            return '';
+        }
+
+        // Response[0] is the post listing, Response[1] is the comments listing
+        // We are interested in response.data[1].data.children
+        const commentsData = response.data[1]?.data?.children;
+
+        if (!commentsData) return '';
+
+        const comments: string[] = [];
+
+        for (const child of commentsData) {
+            if (child.kind === 't1' && child.data) {
+                const body = child.data.body;
+                // Filter out deleted/removed comments
+                if (body && body !== '[deleted]' && body !== '[removed]') {
+                    comments.push(body);
+                }
+            }
+            // Limit to top 10 root comments to save tokens
+            if (comments.length >= 10) break;
+        }
+
+        return comments.join('\n\n');
+    } catch (error) {
+        // Log basic error but don't fail the whole process
+        console.error(`Error fetching details for ${permalink}:`, error instanceof Error ? error.message : String(error));
+        return '';
+    }
 }

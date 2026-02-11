@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
         const { searchParams } = new URL(request.url);
         const keywords = searchParams.get('keywords')?.trim();
         const sort = searchParams.get('sort') as 'top' | 'hot' | null;
+        const time = searchParams.get('time') || 'all';
 
         // Validate inputs
         if (!keywords || keywords.length === 0) {
@@ -32,10 +33,18 @@ export async function GET(request: NextRequest) {
             );
         }
 
+        const validTimeRanges = ['hour', 'day', 'week', 'month', 'year', 'all', '15d'];
+        if (!validTimeRanges.includes(time)) {
+            return NextResponse.json(
+                { error: 'Invalid time parameter' },
+                { status: 400 }
+            );
+        }
+
         const sortType = sort === 'hot' ? 'hot' : 'top'; // Default to 'top'
 
         // Check cache first
-        const cached = searchCache.get(keywords, sortType);
+        const cached = searchCache.get(keywords, sortType, time);
         if (cached) {
             return NextResponse.json(cached);
         }
@@ -62,7 +71,7 @@ export async function GET(request: NextRequest) {
         }
 
         // Fetch from Reddit
-        const posts = await fetchRedditPosts(keywords, sortType);
+        const posts = await fetchRedditPosts(keywords, sortType, time);
 
         const response: SearchResponse = {
             posts,
@@ -74,7 +83,7 @@ export async function GET(request: NextRequest) {
         };
 
         // Cache the response
-        searchCache.set(keywords, sortType, response);
+        searchCache.set(keywords, sortType, response, time);
 
         return NextResponse.json(response);
     } catch (error) {

@@ -13,21 +13,29 @@ import { useRedditSearch } from '@/hooks/useRedditSearch';
 import { Card, CardContent } from '@/components/ui/card';
 import { AlertCircle, SearchX, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import GenerateIdeasButton from '@/components/GenerateIdeasButton';
+import IdeasList from '@/components/IdeasList';
+import { ContentIdea } from '@/types';
 
 export default function SearchPage() {
     const [searchKeywords, setSearchKeywords] = useState('');
     const [searchSort, setSearchSort] = useState<'top' | 'hot'>('top');
+    const [searchTime, setSearchTime] = useState('all');
     const [hasSearched, setHasSearched] = useState(false);
+    const [generatedIdeas, setGeneratedIdeas] = useState<ContentIdea[]>([]);
 
     const { data, isLoading, isError, error, refetch } = useRedditSearch(
         searchKeywords,
-        searchSort
+        searchSort,
+        searchTime
     );
 
-    const handleSearch = useCallback((keywords: string, sort: 'top' | 'hot') => {
+    const handleSearch = useCallback((keywords: string, sort: 'top' | 'hot', time?: string) => {
         setSearchKeywords(keywords);
         setSearchSort(sort);
+        if (time) setSearchTime(time);
         setHasSearched(true);
+        setGeneratedIdeas([]); // Reset ideas on new search
     }, []);
 
     // Extract error message from axios error
@@ -60,6 +68,7 @@ export default function SearchPage() {
                         isLoading={isLoading}
                         initialKeywords={searchKeywords}
                         initialSort={searchSort}
+                        initialTime={searchTime}
                     />
                 </CardContent>
             </Card>
@@ -67,11 +76,17 @@ export default function SearchPage() {
             {/* Export Buttons (shown when results exist) */}
             {data && data.posts.length > 0 && (
                 <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                    <ExportButtons
-                        posts={data.posts}
-                        keywords={searchKeywords}
-                        disabled={isLoading}
-                    />
+                    <div className="flex gap-2">
+                        <ExportButtons
+                            posts={data.posts}
+                            keywords={searchKeywords}
+                            disabled={isLoading}
+                        />
+                        <GenerateIdeasButton
+                            posts={data.posts}
+                            onIdeasGenerated={setGeneratedIdeas}
+                        />
+                    </div>
                 </div>
             )}
 
@@ -96,6 +111,9 @@ export default function SearchPage() {
                     </CardContent>
                 </Card>
             )}
+
+            {/* Ideas List */}
+            {generatedIdeas.length > 0 && <IdeasList ideas={generatedIdeas} />}
 
             {/* No Results State */}
             {hasSearched && !isLoading && !isError && data && data.posts.length === 0 && (

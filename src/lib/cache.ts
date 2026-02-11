@@ -25,16 +25,19 @@ class SearchCache {
     /**
      * Generate a cache key from search params.
      */
-    private key(query: string, sort: string): string {
-        return `${query.toLowerCase().trim()}-${sort}`;
+    /**
+     * Generate a cache key from search params.
+     */
+    private key(query: string, sort: string, time: string = 'all'): string {
+        return `${query.toLowerCase().trim()}-${sort}-${time}`;
     }
 
     /**
      * Get a cached response if it exists and hasn't expired.
      * Returns the response with cache metadata, or null.
      */
-    get(query: string, sort: string): SearchResponse | null {
-        const k = this.key(query, sort);
+    get(query: string, sort: string, time: string = 'all'): SearchResponse | null {
+        const k = this.key(query, sort, time);
         const entry = this.cache.get(k);
 
         if (!entry) return null;
@@ -56,8 +59,8 @@ class SearchCache {
     /**
      * Store a response in the cache.
      */
-    set(query: string, sort: string, data: SearchResponse): void {
-        const k = this.key(query, sort);
+    set(query: string, sort: string, data: SearchResponse, time: string = 'all'): void {
+        const k = this.key(query, sort, time);
         this.cache.set(k, {
             data: { ...data, cached: false, cacheAge: 0 },
             timestamp: Date.now(),

@@ -8,18 +8,27 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Search, Loader2, Flame, TrendingUp } from 'lucide-react';
+import { Search, Loader2, Flame, TrendingUp, Calendar } from 'lucide-react';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 
 interface SearchFormProps {
-    onSearch: (keywords: string, sort: 'top' | 'hot') => void;
+    onSearch: (keywords: string, sort: 'top' | 'hot', time?: string) => void;
     isLoading: boolean;
     initialKeywords?: string;
     initialSort?: 'top' | 'hot';
+    initialTime?: string;
 }
 
-export function SearchForm({ onSearch, isLoading, initialKeywords = '', initialSort = 'top' }: SearchFormProps) {
+export function SearchForm({ onSearch, isLoading, initialKeywords = '', initialSort = 'top', initialTime = 'all' }: SearchFormProps) {
     const [keywords, setKeywords] = useState(initialKeywords);
     const [sort, setSort] = useState<'top' | 'hot'>(initialSort);
+    const [time, setTime] = useState(initialTime);
     const debounceTimer = useRef<NodeJS.Timeout | null>(null);
 
     // Clean up debounce timer on unmount
@@ -39,10 +48,10 @@ export function SearchForm({ onSearch, isLoading, initialKeywords = '', initialS
 
             // Debounce the actual search by 500ms
             debounceTimer.current = setTimeout(() => {
-                onSearch(keywords.trim(), sort);
+                onSearch(keywords.trim(), sort, time);
             }, 100); // Short debounce on submit; main debounce is on typing
         },
-        [keywords, sort, onSearch]
+        [keywords, sort, time, onSearch]
     );
 
     const handleKeyDown = useCallback(
@@ -50,10 +59,10 @@ export function SearchForm({ onSearch, isLoading, initialKeywords = '', initialS
             if (e.key === 'Enter') {
                 e.preventDefault();
                 if (!keywords.trim() || isLoading) return;
-                onSearch(keywords.trim(), sort);
+                onSearch(keywords.trim(), sort, time);
             }
         },
-        [keywords, sort, isLoading, onSearch]
+        [keywords, sort, time, isLoading, onSearch]
     );
 
     return (
@@ -75,15 +84,15 @@ export function SearchForm({ onSearch, isLoading, initialKeywords = '', initialS
             </div>
 
             {/* Sort + Search Row */}
-            <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+            <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
                 {/* Sort Radio Buttons */}
                 <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
                     <button
                         type="button"
                         onClick={() => setSort('top')}
-                        className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-all ${sort === 'top'
-                                ? 'bg-background text-foreground shadow-sm'
-                                : 'text-muted-foreground hover:text-foreground'
+                        className={`flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-all ${sort === 'top'
+                            ? 'bg-background text-foreground shadow-sm'
+                            : 'text-muted-foreground hover:text-foreground'
                             }`}
                         aria-label="Sort by Top"
                     >
@@ -93,9 +102,9 @@ export function SearchForm({ onSearch, isLoading, initialKeywords = '', initialS
                     <button
                         type="button"
                         onClick={() => setSort('hot')}
-                        className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-all ${sort === 'hot'
-                                ? 'bg-background text-foreground shadow-sm'
-                                : 'text-muted-foreground hover:text-foreground'
+                        className={`flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-all ${sort === 'hot'
+                            ? 'bg-background text-foreground shadow-sm'
+                            : 'text-muted-foreground hover:text-foreground'
                             }`}
                         aria-label="Sort by Hot"
                     >
@@ -104,11 +113,28 @@ export function SearchForm({ onSearch, isLoading, initialKeywords = '', initialS
                     </button>
                 </div>
 
+                {/* Time Range Select */}
+                <Select value={time} onValueChange={setTime}>
+                    <SelectTrigger className="w-full sm:w-[140px] h-10 bg-muted/50 border-0 focus:ring-1 focus:ring-primary/20">
+                        <Calendar className="mr-2 h-4 w-4 text-muted-foreground" />
+                        <SelectValue placeholder="Time Range" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="hour">Last Hour</SelectItem>
+                        <SelectItem value="day">Last 24 Hours</SelectItem>
+                        <SelectItem value="week">Last Week</SelectItem>
+                        <SelectItem value="15d">Last 15 Days</SelectItem>
+                        <SelectItem value="month">Last Month</SelectItem>
+                        <SelectItem value="year">Last Year</SelectItem>
+                        <SelectItem value="all">Lifetime</SelectItem>
+                    </SelectContent>
+                </Select>
+
                 {/* Search Button */}
                 <Button
                     type="submit"
                     disabled={!keywords.trim() || isLoading}
-                    className="h-10 px-6 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white border-0 shadow-md hover:shadow-lg transition-all"
+                    className="h-10 px-6 sm:ml-auto bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white border-0 shadow-md hover:shadow-lg transition-all"
                 >
                     {isLoading ? (
                         <>
