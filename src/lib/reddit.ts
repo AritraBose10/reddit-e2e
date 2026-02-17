@@ -73,13 +73,34 @@ export async function fetchRedditPosts(
             params.after = after;
         }
 
-        const response = await axios.get<RedditApiResponse>(`${REDDIT_API_BASE}/search.json`, {
-            params,
-            headers: {
-                'User-Agent': USER_AGENT,
-            },
-            timeout: 10000,
-        });
+        // Retry with exponential backoff on rate limits / transient errors
+        let response;
+        const maxRetries = 3;
+        for (let attempt = 0; attempt < maxRetries; attempt++) {
+            try {
+                response = await axios.get<RedditApiResponse>(`${REDDIT_API_BASE}/search.json`, {
+                    params,
+                    headers: {
+                        'User-Agent': USER_AGENT,
+                    },
+                    timeout: 10000,
+                });
+                break; // Success — exit retry loop
+            } catch (err: unknown) {
+                const status = axios.isAxiosError(err) ? err.response?.status : undefined;
+                const isRetryable = status === 429 || status === 500 || status === 503;
+
+                if (isRetryable && attempt < maxRetries - 1) {
+                    const delay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
+                    console.warn(`Reddit returned ${status}, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
+                    await new Promise((resolve) => setTimeout(resolve, delay));
+                } else {
+                    throw err; // Non-retryable or exhausted retries
+                }
+            }
+        }
+
+        if (!response) break;
 
         const children = response.data?.data?.children || [];
 
@@ -110,9 +131,9 @@ export async function fetchRedditPosts(
         after = response.data?.data?.after;
         if (!after || allPosts.length >= 100) break;
 
-        // Small delay between paginated requests to be polite
+        // Delay between paginated requests to avoid Reddit rate limiting
         if (page < maxPages - 1 && after) {
-            await new Promise((resolve) => setTimeout(resolve, 500));
+            await new Promise((resolve) => setTimeout(resolve, 1200));
         }
     }
 
