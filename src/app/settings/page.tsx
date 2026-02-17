@@ -8,6 +8,7 @@
 import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 import { GoogleAuthButton } from '@/components/GoogleAuthButton';
+import PromptEditor from '@/components/PromptEditor';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { AlertCircle, CheckCircle2, Info, Shield, Clock, Zap } from 'lucide-react';
@@ -23,7 +24,7 @@ function SettingsContent() {
             <div className="mb-8">
                 <h1 className="text-2xl font-bold tracking-tight mb-1">Settings</h1>
                 <p className="text-sm text-muted-foreground">
-                    Manage your integrations and account connections.
+                    Manage your integrations, AI prompts, and account connections.
                 </p>
             </div>
 
@@ -48,6 +49,9 @@ function SettingsContent() {
             )}
 
             <div className="space-y-6">
+                {/* AI Prompts Section */}
+                <PromptEditor />
+
                 {/* Google Account Section */}
                 <GoogleAuthButton />
 

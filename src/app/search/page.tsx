@@ -35,7 +35,7 @@ export default function SearchPage() {
         setSearchSort(sort);
         if (time) setSearchTime(time);
         setHasSearched(true);
-        setGeneratedIdeas([]); // Reset ideas on new search
+        setGeneratedIdeas([]);
     }, []);
 
     // Extract error message from axios error
@@ -112,7 +112,7 @@ export default function SearchPage() {
                 </Card>
             )}
 
-            {/* Ideas List */}
+            {/* Ideas List (with hooks inside each card) */}
             {generatedIdeas.length > 0 && <IdeasList ideas={generatedIdeas} />}
 
             {/* No Results State */}

@@ -57,4 +57,10 @@ export interface ContentIdea {
     concept: string;
     why: string;
     cta: string;
+    hooks: string[];
+}
+
+export interface VideoScripts {
+    variation1: string; // Direct + Tactical
+    variation2: string; // Story + Emotional
 }
