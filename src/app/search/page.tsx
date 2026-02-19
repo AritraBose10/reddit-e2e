@@ -10,6 +10,7 @@ import { SearchForm } from '@/components/SearchForm';
 import { ResultsTable } from '@/components/ResultsTable';
 import { ExportButtons } from '@/components/ExportButtons';
 import { useRedditSearch } from '@/hooks/useRedditSearch';
+import { useContextSearch } from '@/hooks/useContextSearch';
 import { Card, CardContent } from '@/components/ui/card';
 import { AlertCircle, SearchX, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -22,25 +23,43 @@ export default function SearchPage() {
     const [searchSort, setSearchSort] = useState<'top' | 'hot'>('top');
     const [searchTime, setSearchTime] = useState('all');
     const [hasSearched, setHasSearched] = useState(false);
+    const [isContextMode, setIsContextMode] = useState(false);
     const [generatedIdeas, setGeneratedIdeas] = useState<ContentIdea[]>([]);
 
-    const { data, isLoading, isError, error, refetch } = useRedditSearch(
-        searchKeywords,
+    // Standard Search Hook
+    const standardSearch = useRedditSearch(
+        !isContextMode ? searchKeywords : '',
         searchSort,
         searchTime
     );
 
-    const handleSearch = useCallback((keywords: string, sort: 'top' | 'hot', time?: string) => {
+    // Context Search Hook
+    const contextSearch = useContextSearch();
+
+    // Determine active data source
+    const isLoading = isContextMode ? contextSearch.isLoading : standardSearch.isLoading;
+    const isError = isContextMode ? !!contextSearch.error : standardSearch.isError;
+    const error = isContextMode ? contextSearch.error : standardSearch.error;
+    const data = isContextMode ? contextSearch.data : standardSearch.data;
+
+    const handleSearch = useCallback((keywords: string, sort: 'top' | 'hot', time?: string, contextMode: boolean = false) => {
         setSearchKeywords(keywords);
         setSearchSort(sort);
         if (time) setSearchTime(time);
         setHasSearched(true);
+        setIsContextMode(contextMode);
         setGeneratedIdeas([]);
-    }, []);
 
-    // Extract error message from axios error
+        // If context mode, trigger it explicitly
+        if (contextMode) {
+            contextSearch.search(keywords, sort, time || 'all');
+        }
+    }, [contextSearch]);
+
+    // Extract error message
     const getErrorMessage = (): string => {
         if (!error) return 'An unexpected error occurred.';
+        if (typeof error === 'string') return error;
         if (typeof error === 'object' && 'response' in error) {
             const axiosError = error as { response?: { data?: { error?: string }; status?: number } };
             if (axiosError.response?.data?.error) return axiosError.response.data.error;
@@ -61,7 +80,14 @@ export default function SearchPage() {
             </div>
 
             {/* Search Form */}
-            <Card className="border-border/60 bg-card/50 shadow-sm">
+            <Card className="border-border/60 bg-card/50 shadow-sm relative overflow-hidden">
+                {/* Context Mode Status Bar */}
+                {isContextMode && isLoading && (
+                    <div className="absolute top-0 left-0 right-0 h-1 bg-purple-100 dark:bg-purple-900/30">
+                        <div className="h-full bg-purple-500 animate-progress-indeterminate" />
+                    </div>
+                )}
+
                 <CardContent className="p-5">
                     <SearchForm
                         onSearch={handleSearch}
@@ -70,6 +96,26 @@ export default function SearchPage() {
                         initialSort={searchSort}
                         initialTime={searchTime}
                     />
+
+                    {/* Pipeline Status Indicator */}
+                    {isContextMode && isLoading && (
+                        <div className="mt-4 flex items-center justify-center gap-6 text-sm">
+                            <div className={`flex items-center gap-2 ${contextSearch.status === 'analyzing' ? 'text-purple-600 font-medium' : 'text-muted-foreground/50'}`}>
+                                <div className={`w-2 h-2 rounded-full ${contextSearch.status === 'analyzing' ? 'bg-purple-600 animate-ping' : 'bg-gray-300'}`} />
+                                Analyzing Intent
+                            </div>
+                            <div className="w-8 h-[1px] bg-border" />
+                            <div className={`flex items-center gap-2 ${contextSearch.status === 'fetching' ? 'text-blue-600 font-medium' : 'text-muted-foreground/50'}`}>
+                                <div className={`w-2 h-2 rounded-full ${contextSearch.status === 'fetching' ? 'bg-blue-600 animate-ping' : 'bg-gray-300'}`} />
+                                Fetching (Client-Side)
+                            </div>
+                            <div className="w-8 h-[1px] bg-border" />
+                            <div className={`flex items-center gap-2 ${contextSearch.status === 'filtering' ? 'text-green-600 font-medium' : 'text-muted-foreground/50'}`}>
+                                <div className={`w-2 h-2 rounded-full ${contextSearch.status === 'filtering' ? 'bg-green-600 animate-ping' : 'bg-gray-300'}`} />
+                                🧠 Semantic Filter
+                            </div>
+                        </div>
+                    )}
                 </CardContent>
             </Card>
 

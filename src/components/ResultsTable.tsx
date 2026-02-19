@@ -1,11 +1,11 @@
 /**
  * Sortable results table for displaying Reddit posts.
- * Supports client-side sorting on all columns.
+ * Supports client-side sorting on all columns, including AI relevance score.
  */
 
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
     Table,
     TableBody,
@@ -16,8 +16,8 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { RedditPost, SortField, SortDirection, SortConfig } from '@/types';
-import { ArrowUpDown, ArrowUp, ArrowDown, ExternalLink, MessageSquare, ThumbsUp } from 'lucide-react';
+import { RedditPost, SortField, SortConfig } from '@/types';
+import { ArrowUpDown, ArrowUp, ArrowDown, ExternalLink, MessageSquare, ThumbsUp, Sparkles } from 'lucide-react';
 
 interface ResultsTableProps {
     posts: RedditPost[];
@@ -72,6 +72,18 @@ export function ResultsTable({
         direction: 'desc',
     });
 
+    const hasRelevance = useMemo(() => posts.some(p => p.relevanceScore !== undefined), [posts]);
+
+    // Auto-switch to relevance sorting when context mode results arrive
+    useEffect(() => {
+        if (hasRelevance) {
+            setSortConfig({ field: 'relevance', direction: 'desc' });
+        } else {
+            // Reset to upvotes for standard search if we switched back
+            setSortConfig({ field: 'upvotes', direction: 'desc' });
+        }
+    }, [hasRelevance, posts]); // Added posts dependency to trigger on new search results
+
     const handleSort = (field: SortField) => {
         setSortConfig((prev) => ({
             field,
@@ -84,6 +96,8 @@ export function ResultsTable({
         sorted.sort((a, b) => {
             const dir = sortConfig.direction === 'asc' ? 1 : -1;
             switch (sortConfig.field) {
+                case 'relevance':
+                    return ((a.relevanceScore || 0) - (b.relevanceScore || 0)) * dir;
                 case 'upvotes':
                     return (a.upvotes - b.upvotes) * dir;
                 case 'comments':
@@ -100,6 +114,14 @@ export function ResultsTable({
         });
         return sorted;
     }, [posts, sortConfig]);
+
+    // Matches relevance score to a color
+    const getScoreColor = (score: number) => {
+        if (score >= 9) return 'text-green-600 bg-green-500/10 border-green-200';
+        if (score >= 7) return 'text-blue-600 bg-blue-500/10 border-blue-200';
+        if (score >= 5) return 'text-orange-600 bg-orange-500/10 border-orange-200';
+        return 'text-gray-500 bg-gray-100 border-gray-200';
+    };
 
     // Loading skeleton
     if (isLoading) {
@@ -161,6 +183,18 @@ export function ResultsTable({
                     <Table>
                         <TableHeader>
                             <TableRow className="bg-muted/40 hover:bg-muted/40">
+                                {hasRelevance && (
+                                    <TableHead
+                                        className="cursor-pointer select-none hover:text-foreground transition-colors w-[100px]"
+                                        onClick={() => handleSort('relevance')}
+                                    >
+                                        <div className="flex items-center">
+                                            <Sparkles className="h-3.5 w-3.5 mr-1 text-purple-500" />
+                                            Score
+                                            <SortIcon field="relevance" sortConfig={sortConfig} />
+                                        </div>
+                                    </TableHead>
+                                )}
                                 <TableHead
                                     className="cursor-pointer select-none hover:text-foreground transition-colors min-w-[250px]"
                                     onClick={() => handleSort('title')}
@@ -215,6 +249,13 @@ export function ResultsTable({
                                     key={post.id}
                                     className={`group transition-colors ${index % 2 === 0 ? '' : 'bg-muted/10'}`}
                                 >
+                                    {hasRelevance && (
+                                        <TableCell>
+                                            <div className={`inline-flex items-center justify-center w-8 h-8 rounded-full border text-xs font-bold ${getScoreColor(post.relevanceScore || 0)}`}>
+                                                {post.relevanceScore}
+                                            </div>
+                                        </TableCell>
+                                    )}
                                     <TableCell className="max-w-[400px]">
                                         <a
                                             href={post.link}

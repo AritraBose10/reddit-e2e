@@ -17,8 +17,9 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 
+
 interface SearchFormProps {
-    onSearch: (keywords: string, sort: 'top' | 'hot', time?: string) => void;
+    onSearch: (keywords: string, sort: 'top' | 'hot', time?: string, isContextMode?: boolean) => void;
     isLoading: boolean;
     initialKeywords?: string;
     initialSort?: 'top' | 'hot';
@@ -29,6 +30,7 @@ export function SearchForm({ onSearch, isLoading, initialKeywords = '', initialS
     const [keywords, setKeywords] = useState(initialKeywords);
     const [sort, setSort] = useState<'top' | 'hot'>(initialSort);
     const [time, setTime] = useState(initialTime);
+    const [isContextMode, setIsContextMode] = useState(false);
     const debounceTimer = useRef<NodeJS.Timeout | null>(null);
 
     // Clean up debounce timer on unmount
@@ -42,16 +44,19 @@ export function SearchForm({ onSearch, isLoading, initialKeywords = '', initialS
         (e: React.FormEvent) => {
             e.preventDefault();
             if (!keywords.trim()) return;
-
-            // Cancel any pending debounce
             if (debounceTimer.current) clearTimeout(debounceTimer.current);
 
-            // Debounce the actual search by 500ms
+            // Immediate submit for Context Mode (no debounce needed as it's explicit)
+            if (isContextMode) {
+                onSearch(keywords.trim(), sort, time, true);
+                return;
+            }
+
             debounceTimer.current = setTimeout(() => {
-                onSearch(keywords.trim(), sort, time);
-            }, 100); // Short debounce on submit; main debounce is on typing
+                onSearch(keywords.trim(), sort, time, false);
+            }, 100);
         },
-        [keywords, sort, time, onSearch]
+        [keywords, sort, time, isContextMode, onSearch]
     );
 
     const handleKeyDown = useCallback(
@@ -59,24 +64,42 @@ export function SearchForm({ onSearch, isLoading, initialKeywords = '', initialS
             if (e.key === 'Enter') {
                 e.preventDefault();
                 if (!keywords.trim() || isLoading) return;
-                onSearch(keywords.trim(), sort, time);
+                onSearch(keywords.trim(), sort, time, isContextMode);
             }
         },
-        [keywords, sort, time, isLoading, onSearch]
+        [keywords, sort, time, isContextMode, isLoading, onSearch]
     );
 
     return (
         <form onSubmit={handleSubmit} className="w-full space-y-4">
+            {/* Context Mode Toggle */}
+            <div className="flex justify-end mb-2">
+                <button
+                    type="button"
+                    onClick={() => setIsContextMode(!isContextMode)}
+                    className={`text-xs flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all ${isContextMode
+                            ? 'bg-purple-500/10 text-purple-600 border-purple-200 dark:border-purple-800'
+                            : 'bg-muted/50 text-muted-foreground border-transparent hover:bg-muted'
+                        }`}
+                >
+                    <div className={`w-2 h-2 rounded-full ${isContextMode ? 'bg-purple-500 animate-pulse' : 'bg-muted-foreground/30'}`} />
+                    {isContextMode ? 'Context Mode Active' : 'Enable Context Mode'}
+                </button>
+            </div>
+
             {/* Keyword Input */}
             <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                <Search className={`absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 ${isContextMode ? 'text-purple-500' : 'text-muted-foreground'}`} />
                 <Input
                     type="text"
-                    placeholder="Search Reddit posts... (e.g., 'machine learning', 'web development')"
+                    placeholder={isContextMode ? "Describe what you're looking for (e.g. 'best laptop for coding under $1000')..." : "Search Reddit posts... (e.g., 'machine learning', 'web development')"}
                     value={keywords}
                     onChange={(e) => setKeywords(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    className="pl-10 h-12 text-base bg-background border-border/60 focus:border-primary/50 transition-colors"
+                    className={`pl-10 h-12 text-base bg-background transition-colors ${isContextMode
+                            ? 'border-purple-500/30 ring-purple-500/10 focus:border-purple-500/50'
+                            : 'border-border/60 focus:border-primary/50'
+                        }`}
                     aria-label="Search keywords"
                     maxLength={200}
                     disabled={isLoading}
@@ -134,17 +157,20 @@ export function SearchForm({ onSearch, isLoading, initialKeywords = '', initialS
                 <Button
                     type="submit"
                     disabled={!keywords.trim() || isLoading}
-                    className="h-10 px-6 sm:ml-auto bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white border-0 shadow-md hover:shadow-lg transition-all"
+                    className={`h-10 px-6 sm:ml-auto text-white border-0 shadow-md hover:shadow-lg transition-all ${isContextMode
+                            ? 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700'
+                            : 'bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600'
+                        }`}
                 >
                     {isLoading ? (
                         <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Searching...
+                            {isContextMode ? 'Analyzing...' : 'Searching...'}
                         </>
                     ) : (
                         <>
-                            <Search className="mr-2 h-4 w-4" />
-                            Search Reddit
+                            {isContextMode ? <div className="mr-2">✨</div> : <Search className="mr-2 h-4 w-4" />}
+                            {isContextMode ? 'Deep Search' : 'Search Reddit'}
                         </>
                     )}
                 </Button>

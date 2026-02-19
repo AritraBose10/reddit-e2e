@@ -9,6 +9,7 @@ export interface RedditPost {
     subreddit: string;
     created: string; // ISO date string
     author: string;
+    relevanceScore?: number;
 }
 
 export interface SearchParams {
@@ -44,7 +45,7 @@ export interface ExportResult {
     error?: string;
 }
 
-export type SortField = 'upvotes' | 'comments' | 'created' | 'title' | 'subreddit';
+export type SortField = 'upvotes' | 'comments' | 'created' | 'title' | 'subreddit' | 'relevance';
 export type SortDirection = 'asc' | 'desc';
 
 export interface SortConfig {
