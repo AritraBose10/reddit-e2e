@@ -52,7 +52,7 @@ export default function SearchPage() {
 
         // If context mode, trigger it explicitly
         if (contextMode) {
-            contextSearch.search(keywords, sort, time || 'all');
+            contextSearch.search(keywords);
         }
     }, [contextSearch]);
 
@@ -67,6 +67,14 @@ export default function SearchPage() {
                 return 'Rate limit exceeded. Please wait a moment before searching again.';
         }
         return (error as Error).message || 'Failed to fetch results. Please try again.';
+    };
+
+    const handleRefetch = () => {
+        if (isContextMode) {
+            handleSearch(searchKeywords, searchSort, searchTime, true);
+        } else {
+            standardSearch.refetch();
+        }
     };
 
     return (
@@ -145,7 +153,7 @@ export default function SearchPage() {
                             <h3 className="font-medium text-destructive mb-1">Search Failed</h3>
                             <p className="text-sm text-muted-foreground">{getErrorMessage()}</p>
                             <Button
-                                onClick={() => refetch()}
+                                onClick={() => handleRefetch()}
                                 variant="outline"
                                 size="sm"
                                 className="mt-3 gap-2"

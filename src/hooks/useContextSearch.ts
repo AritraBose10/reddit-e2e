@@ -6,11 +6,16 @@ import { getStoredApiKey } from '@/components/ApiKeyManager';
 
 interface ContextSearchState {
     isLoading: boolean;
+    status: 'idle' | 'analyzing' | 'fetching' | 'filtering' | 'completed';
     data: {
         posts: RedditPost[];
+        totalResults: number;
+        query: string;
+        sort: string;
+        cached?: boolean;
+        cacheAge?: number;
         queryContext?: string[];
         filterStats?: any;
-        cached?: boolean;
     } | null;
     error: string | null;
 }
@@ -18,6 +23,7 @@ interface ContextSearchState {
 export function useContextSearch() {
     const [state, setState] = useState<ContextSearchState>({
         isLoading: false,
+        status: 'idle',
         data: null,
         error: null,
     });
@@ -25,18 +31,27 @@ export function useContextSearch() {
     const { updateUsage } = useApiUsage();
 
     const search = useCallback(async (query: string) => {
-        setState(prev => ({ ...prev, isLoading: true, error: null }));
+        setState(prev => ({
+            ...prev,
+            isLoading: true,
+            status: 'analyzing',
+            error: null
+        }));
 
         try {
             const apiKey = getStoredApiKey();
             const headers: Record<string, string> = apiKey ? { 'x-groq-api-key': apiKey } : {};
 
-            // Single call to the orchestration route
+            // Orchestration route handles everything
             const res = await fetch('/api/context/filter', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', ...headers },
                 body: JSON.stringify({ query }),
             });
+
+            // Simulate progress states for better UI feel (since server does it all at once)
+            setTimeout(() => setState(prev => ({ ...prev, status: 'fetching' })), 800);
+            setTimeout(() => setState(prev => ({ ...prev, status: 'filtering' })), 2000);
 
             if (res.status === 429) {
                 throw new Error('Too many requests — please wait a moment and try again');
@@ -55,12 +70,19 @@ export function useContextSearch() {
 
             const data = await res.json();
 
-            // Optional: Update usage if returned (not implemented in this simplified route yet)
-            // if (data.rateLimit) updateUsage(...)
-
             setState({
                 isLoading: false,
-                data: data,
+                status: 'completed',
+                data: {
+                    posts: data.posts,
+                    totalResults: data.posts.length,
+                    query: query,
+                    sort: 'relevance',
+                    cached: data.cached,
+                    cacheAge: data.cacheAge,
+                    queryContext: data.queryContext,
+                    filterStats: data.filterStats
+                },
                 error: null
             });
 
@@ -68,14 +90,15 @@ export function useContextSearch() {
             console.error('Context search error:', err);
             setState({
                 isLoading: false,
+                status: 'idle',
                 data: null,
                 error: err.message || 'Unknown error occurred'
             });
         }
-    }, [updateUsage]);
+    }, []);
 
     const reset = useCallback(() => {
-        setState({ isLoading: false, data: null, error: null });
+        setState({ isLoading: false, status: 'idle', data: null, error: null });
     }, []);
 
     return { ...state, search, reset };

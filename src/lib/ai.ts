@@ -161,7 +161,7 @@ export async function filterPostsByContext(
 
     // 2. Prepare Batches (10 posts per batch)
     const BATCH_SIZE = 10;
-    const batches = [];
+    const batches: any[][] = [];
     for (let i = 0; i < posts.length; i += BATCH_SIZE) {
         batches.push(posts.slice(i, i + BATCH_SIZE));
     }
@@ -222,4 +222,93 @@ ${JSON.stringify(simplifiedPosts)}
     }));
 
     return { filteredPosts: scoredPosts, rateLimit: lastRateLimit };
+}
+
+export async function generateContentIdeas(
+    topic: string,
+    discussions: string[],
+    promptOverride?: string,
+    apiKeyOverride?: string
+): Promise<{ ideas: ContentIdea[]; rateLimit: RateLimitInfo }> {
+    const promptTemplate = promptOverride || DEFAULT_IDEAS_PROMPT;
+    const discussionsText = discussions.join('\n\n---\n\n');
+
+    const prompt = promptTemplate
+        .replace('{{SUBREDDIT}}', topic)
+        .replace('{{DISCUSSIONS}}', discussionsText);
+
+    const { content, rateLimit } = await callGroq(
+        [
+            { role: 'system', content: 'You are a Viral Content Strategist.' },
+            { role: 'user', content: prompt },
+        ],
+        0.7,
+        apiKeyOverride
+    );
+
+    const parsed = safeParseJSON<any[]>(content, []);
+    // Ensure each idea has a hooks array (required by ContentIdea type)
+    const ideas = Array.isArray(parsed) ? parsed.map(idea => ({
+        hook: idea.hook || '',
+        concept: idea.concept || '',
+        why: idea.why || '',
+        cta: idea.cta || '',
+        hooks: []
+    })) : [];
+
+    return { ideas, rateLimit };
+}
+
+export async function generateViralHooks(
+    discussions: string[],
+    promptOverride?: string,
+    apiKeyOverride?: string
+): Promise<{ hooks: string[]; rateLimit: RateLimitInfo }> {
+    const promptTemplate = promptOverride || DEFAULT_HOOKS_PROMPT;
+    const discussionsText = discussions.join('\n\n---\n\n');
+
+    const prompt = promptTemplate.replace('{{DISCUSSIONS}}', discussionsText);
+
+    const { content, rateLimit } = await callGroq(
+        [
+            { role: 'system', content: 'You are a Viral Hook Expert.' },
+            { role: 'user', content: prompt },
+        ],
+        0.8,
+        apiKeyOverride
+    );
+
+    const parsed = safeParseJSON<{ hooks: string[] }>(content, { hooks: [] });
+    const hooks = Array.isArray(parsed?.hooks) ? parsed.hooks : [];
+
+    return { hooks, rateLimit };
+}
+
+export async function generateVideoScripts(
+    hook: string,
+    concept: string,
+    promptOverride?: string,
+    apiKeyOverride?: string
+): Promise<{ scripts: VideoScripts; rateLimit: RateLimitInfo }> {
+    const promptTemplate = promptOverride || DEFAULT_SCRIPTS_PROMPT;
+
+    const prompt = promptTemplate
+        .replace('{{HOOK}}', hook)
+        .replace('{{CONCEPT}}', concept);
+
+    const { content, rateLimit } = await callGroq(
+        [
+            { role: 'system', content: 'You are a Video Script Writer.' },
+            { role: 'user', content: prompt },
+        ],
+        0.7,
+        apiKeyOverride
+    );
+
+    const scripts = safeParseJSON<VideoScripts>(content, {
+        variation1: 'Failed to generate script 1.',
+        variation2: 'Failed to generate script 2.'
+    });
+
+    return { scripts, rateLimit };
 }
