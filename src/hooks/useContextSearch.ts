@@ -1,8 +1,8 @@
 
-import { useState, useCallback } from 'react';
-import { RedditPost } from '@/types';
-import { useApiUsage } from '@/context/ApiUsageContext';
 import { getStoredApiKey } from '@/components/ApiKeyManager';
+import { useApiUsage } from '@/context/ApiUsageContext';
+import { RedditPost } from '@/types';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 interface ContextSearchState {
     isLoading: boolean;
@@ -28,9 +28,20 @@ export function useContextSearch() {
         error: null,
     });
 
-    const { updateUsage } = useApiUsage();
+    useApiUsage();
+    const progressTimersRef = useRef<Array<ReturnType<typeof setTimeout>>>([]);
 
-    const search = useCallback(async (query: string, strictness?: number, sort?: string, time?: string) => {
+    const clearProgressTimers = useCallback(() => {
+        progressTimersRef.current.forEach((id) => clearTimeout(id));
+        progressTimersRef.current = [];
+    }, []);
+
+    useEffect(() => {
+        return () => clearProgressTimers();
+    }, [clearProgressTimers]);
+
+    const search = useCallback(async (query: string, sort?: string, time?: string) => {
+        clearProgressTimers();
         setState(prev => ({
             ...prev,
             isLoading: true,
@@ -42,16 +53,20 @@ export function useContextSearch() {
             const apiKey = getStoredApiKey();
             const headers: Record<string, string> = apiKey ? { 'x-groq-api-key': apiKey } : {};
 
+            // Simulate progress states for better UX while server does the full pipeline.
+            progressTimersRef.current.push(
+                setTimeout(() => setState(prev => ({ ...prev, status: 'fetching' })), 800)
+            );
+            progressTimersRef.current.push(
+                setTimeout(() => setState(prev => ({ ...prev, status: 'filtering' })), 2000)
+            );
+
             // Orchestration route handles everything
             const res = await fetch('/api/context/filter', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', ...headers },
-                body: JSON.stringify({ query, strictness, sort, time }),
+                body: JSON.stringify({ query, sort, time }),
             });
-
-            // Simulate progress states for better UI feel (since server does it all at once)
-            setTimeout(() => setState(prev => ({ ...prev, status: 'fetching' })), 800);
-            setTimeout(() => setState(prev => ({ ...prev, status: 'filtering' })), 2000);
 
             if (res.status === 429) {
                 throw new Error('Too many requests — please wait a moment and try again');
@@ -94,8 +109,10 @@ export function useContextSearch() {
                 data: null,
                 error: err.message || 'Unknown error occurred'
             });
+        } finally {
+            clearProgressTimers();
         }
-    }, []);
+    }, [clearProgressTimers]);
 
     const reset = useCallback(() => {
         setState({ isLoading: false, status: 'idle', data: null, error: null });

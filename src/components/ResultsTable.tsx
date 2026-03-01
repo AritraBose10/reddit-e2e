@@ -6,7 +6,9 @@
 
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
     Table,
     TableBody,
@@ -15,11 +17,9 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Checkbox } from '@/components/ui/checkbox';
-import { RedditPost, SortField, SortConfig } from '@/types';
-import { ArrowUpDown, ArrowUp, ArrowDown, ExternalLink, MessageSquare, ThumbsUp, Sparkles } from 'lucide-react';
+import { RedditPost, SortConfig, SortField } from '@/types';
+import { ArrowDown, ArrowUp, ArrowUpDown, ExternalLink, MessageSquare, Sparkles, ThumbsUp } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 
 interface ResultsTableProps {
     posts: RedditPost[];
@@ -89,15 +89,17 @@ export function ResultsTable({
         [posts]
     );
 
-    // Auto-switch to relevance sorting when context mode results arrive
+    // Auto-switch to relevance sorting when results arrive or have relevance score
     useEffect(() => {
         if (hasRelevance) {
+            // Sort by relevance by default when available
             setSortConfig({ field: 'relevance', direction: 'desc' });
         } else {
+            // Otherwise sort by engagement (upvotes first, then comments)
             setSortConfig({ field: 'upvotes', direction: 'desc' });
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [postsFingerprint]);
+    }, [postsFingerprint, hasRelevance]);
 
     // Clear selection whenever the result set truly changes (new search).
     // Do NOT call onSelectionChange here — that would trigger a parent
@@ -121,7 +123,15 @@ export function ResultsTable({
             const dir = sortConfig.direction === 'asc' ? 1 : -1;
             switch (sortConfig.field) {
                 case 'relevance':
-                    return ((a.relevanceScore || 0) - (b.relevanceScore || 0)) * dir;
+                    const relDiff = (a.relevanceScore || 0) - (b.relevanceScore || 0);
+                    if (relDiff !== 0) {
+                        // Primary sort by relevance
+                        return relDiff * dir;
+                    }
+                    // Secondary sort: if relevance is same, sort by engagement (upvotes + comments)
+                    const aEngagement = a.upvotes + (a.comments * 2);
+                    const bEngagement = b.upvotes + (b.comments * 2);
+                    return (aEngagement - bEngagement) * -1; // Always descending for engagement tiebreaker
                 case 'upvotes':
                     return (a.upvotes - b.upvotes) * dir;
                 case 'comments':
@@ -152,7 +162,7 @@ export function ResultsTable({
         // Update local state
         setSelectedIds(next);
 
-        // Notify parent OUTSIDE of the set state updater function 
+        // Notify parent OUTSIDE of the set state updater function
         // to prevent React warnings about updating other components during render
         const selected = posts.filter(p => next.has(p.id));
         onSelectionChange?.(selected);

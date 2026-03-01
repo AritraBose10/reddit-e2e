@@ -1,13 +1,13 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { generateSearchQueries, generatePostReasons } from '@/lib/ai';
-import { searchReddit } from '@/lib/reddit';
-import { deduplicateWithBonus, heuristicScore } from '@/lib/heuristics';
-import { semanticFilter } from '@/lib/embeddings';
+import { generatePostReasons, generateSearchQueries } from '@/lib/ai';
 import { cacheGet, cacheSet, makeCacheKey, TTL } from '@/lib/cache';
+import { semanticFilter } from '@/lib/embeddings';
+import { deduplicateWithBonus, heuristicScore } from '@/lib/heuristics';
+import { searchReddit } from '@/lib/reddit';
+import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(req: NextRequest) {
     try {
-        const { query: userQuery, strictness, sort, time } = await req.json();
+        const { query: userQuery, sort, time } = await req.json();
         const apiKey = req.headers.get('x-groq-api-key') || undefined;
 
         // 1. Validation
@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
         }
 
         // 2. Cache Check (Full Response)
-        const cacheKey = makeCacheKey('filter', `${userQuery}__s${strictness ?? 'default'}__${sort ?? 'relevance'}__${time ?? 'all'}`);
+        const cacheKey = makeCacheKey('filter', `${userQuery}__${sort ?? 'relevance'}__${time ?? 'all'}`);
         const cached = await cacheGet(cacheKey);
         if (cached) {
             return NextResponse.json({ ...cached, cached: true });
@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
         }
 
         // 6. Semantic Filtering (local embeddings — 0 tokens)
-        const semanticallyFiltered = await semanticFilter(uniquePosts, userQuery, 'unknown', strictness);
+        const semanticallyFiltered = await semanticFilter(uniquePosts, userQuery, 'unknown');
 
         // 7. Final Ranking — heuristic score with keyword overlap bonus
         // If semantic filter produced nothing (very niche query), fall back to heuristic-sorted raw posts.

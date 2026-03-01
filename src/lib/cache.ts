@@ -22,51 +22,61 @@ setInterval(() => {
     }
 }, 60000 * 5); // Run every 5 mins
 
-async function redisGet(key: string): Promise<any | null> {
+async function redisCommand<T>(command: Array<string | number>): Promise<T | null> {
     const url = process.env.UPSTASH_REDIS_REST_URL;
     const token = process.env.UPSTASH_REDIS_REST_TOKEN;
 
     if (!url || !token) return null;
 
     try {
-        const res = await fetch(`${url}/get/${key}`, {
-            headers: { Authorization: `Bearer ${token}` }
+        const res = await fetch(`${url}`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(command),
         });
-        const data = await res.json();
-        if (data.result) {
-            return JSON.parse(data.result);
-        }
-        return null;
+
+        if (!res.ok) return null;
+
+        const data = await res.json() as { result?: T; error?: string };
+        if (data.error) return null;
+        if (data.result === undefined) return null;
+        return data.result;
     } catch (e) {
-        console.warn('Redis Get Failed:', e);
+        console.warn('Redis Command Failed:', e);
+        return null;
+    }
+}
+
+async function redisGet(key: string): Promise<any | null> {
+    const result = await redisCommand<string>(['GET', key]);
+    if (!result) return null;
+
+    try {
+        return JSON.parse(result);
+    } catch {
         return null;
     }
 }
 
 async function redisSet(key: string, value: any, ttlSeconds: number): Promise<void> {
-    const url = process.env.UPSTASH_REDIS_REST_URL;
-    const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-
-    if (!url || !token) return;
-
-    try {
-        await fetch(`${url}/setex/${key}/${ttlSeconds}/${JSON.stringify(value)}`, {
-            headers: { Authorization: `Bearer ${token}` }
-        });
-    } catch (e) {
-        console.warn('Redis Set Failed:', e);
-    }
+    await redisCommand(['SETEX', key, ttlSeconds, JSON.stringify(value)]);
 }
 
 export async function cacheGet(key: string): Promise<any | null> {
     // Try Redis first
     const redisVal = await redisGet(key);
-    if (redisVal) return redisVal;
+    if (redisVal !== null) return redisVal;
 
     // Fallback to Memory
     const entry = memoryCache.get(key);
     if (entry && entry.expiresAt > Date.now()) {
         return entry.value;
+    }
+    if (entry) {
+        memoryCache.delete(key);
     }
     return null;
 }

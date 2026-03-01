@@ -5,21 +5,21 @@
 
 'use client';
 
+import { SearchResponse } from '@/types';
 import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
-import { SearchResponse } from '@/types';
 
-async function searchReddit(keywords: string, sort: string, time?: string): Promise<SearchResponse> {
+async function searchReddit(keywords: string, sort: string, time?: string, limit?: number): Promise<SearchResponse> {
     const { data } = await axios.get<SearchResponse>('/api/reddit', {
-        params: { keywords, sort, time },
+        params: { keywords, sort, time, limit: limit || 100 },
     });
     return data;
 }
 
-export function useRedditSearch(keywords: string, sort: 'top' | 'hot' | 'relevance', time?: string) {
+export function useRedditSearch(keywords: string, sort: 'top' | 'hot' | 'relevance', time?: string, limit: number = 100) {
     return useQuery<SearchResponse>({
-        queryKey: ['reddit-search', keywords, sort, time],
-        queryFn: () => searchReddit(keywords, sort, time),
+        queryKey: ['reddit-search', keywords, sort, time, limit],
+        queryFn: () => searchReddit(keywords, sort, time, limit),
         enabled: keywords.length > 0,
         staleTime: 5 * 60 * 1000, // 5 minutes — matches server cache TTL
         retry: 2,

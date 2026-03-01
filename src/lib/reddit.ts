@@ -1,4 +1,5 @@
 
+import { heuristicScore } from '@/lib/heuristics';
 import { RedditPost } from '@/types';
 
 const REDDIT_SEARCH_URL = 'https://www.reddit.com/search.json';
@@ -52,6 +53,11 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}, timeout 
             signal: controller.signal
         });
         return response;
+    } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') {
+            throw new Error('Reddit request timeout');
+        }
+        throw error;
     } finally {
         clearTimeout(id);
     }
@@ -123,15 +129,23 @@ export async function searchReddit(
         // Apply custom date cutoff if needed (e.g., 15d)
         let filtered = posts;
         if (cutoffMs) {
-            filtered = posts.filter(p => new Date(p.created).getTime() >= cutoffMs);
+            filtered = posts.filter((p: RedditPost) => new Date(p.created).getTime() >= cutoffMs);
         }
 
-        return filtered.slice(0, limit);
+        // Calculate relevance scores for all posts (upvotes, comments, recency)
+        const scored = filtered.map((post: RedditPost) => ({
+            ...post,
+            relevanceScore: heuristicScore(post, query.split(/\s+/))
+        }));
+
+        // Sort by relevance score descending, then return the limit
+        scored.sort((a: RedditPost & { relevanceScore?: number }, b: RedditPost & { relevanceScore?: number }) => (b.relevanceScore || 0) - (a.relevanceScore || 0));
+
+        return scored.slice(0, limit);
 
     } catch (error) {
         console.error('Reddit Search Failed:', error);
-        // Return empty array on failure so one failed query doesn't crash the whole batch
-        return [];
+        throw error instanceof Error ? error : new Error(String(error));
     }
 }
 

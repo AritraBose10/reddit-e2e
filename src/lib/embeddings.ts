@@ -140,8 +140,7 @@ export function adaptiveThreshold(intent: string): number {
 export async function semanticFilter(
     posts: any[],
     query: string,
-    intentType: string = 'unknown',
-    strictness?: number
+    intentType: string = 'unknown'
 ): Promise<any[]> {
     if (posts.length === 0) return [];
 
@@ -168,13 +167,9 @@ export async function semanticFilter(
         // Sort by score descending
         scored.sort((a, b) => b.score - a.score);
 
-        // Percentile-based filtering:
-        // Strictness 0.50 → keep top 50% of posts
-        // Strictness 0.75 → keep top 25%
-        // Strictness 0.95 → keep top 5%
-        // Formula: keepRatio = 1 - strictness (clamped to [0.05, 0.60])
-        const effectiveStrictness = strictness ?? adaptiveThreshold(intentType);
-        const keepRatio = Math.max(0.05, Math.min(0.60, 1 - effectiveStrictness));
+        // Percentile-based filtering based on adaptive thresholds by intent type
+        const adaptiveRatio = adaptiveThreshold(intentType);
+        const keepRatio = Math.max(0.05, Math.min(0.60, 1 - adaptiveRatio));
         const keepCount = Math.max(3, Math.ceil(scored.length * keepRatio));
 
         // Also apply a minimum absolute threshold (0.40) to filter out truly unrelated posts

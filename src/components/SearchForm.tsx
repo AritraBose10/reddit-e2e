@@ -5,10 +5,8 @@
 
 'use client';
 
-import { useState, useCallback, useRef, useEffect } from 'react';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Search, Loader2, Flame, TrendingUp, Calendar, SlidersHorizontal, Target } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import {
     Select,
     SelectContent,
@@ -16,10 +14,12 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { Calendar, Flame, Loader2, Search, Target, TrendingUp } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 
 interface SearchFormProps {
-    onSearch: (keywords: string, sort: 'top' | 'hot' | 'relevance', time?: string, isContextMode?: boolean, strictness?: number) => void;
+    onSearch: (keywords: string, sort: 'top' | 'hot' | 'relevance', time?: string, isContextMode?: boolean, limit?: number) => void;
     isLoading: boolean;
     initialKeywords?: string;
     initialSort?: 'top' | 'hot' | 'relevance';
@@ -30,8 +30,8 @@ export function SearchForm({ onSearch, isLoading, initialKeywords = '', initialS
     const [keywords, setKeywords] = useState(initialKeywords);
     const [sort, setSort] = useState<'top' | 'hot' | 'relevance'>(initialSort);
     const [time, setTime] = useState(initialTime);
+    const [limit, setLimit] = useState<number>(100);
     const [isContextMode, setIsContextMode] = useState(false);
-    const [strictness, setStrictness] = useState(0.75);
     const debounceTimer = useRef<NodeJS.Timeout | null>(null);
 
     // Clean up debounce timer on unmount
@@ -49,15 +49,15 @@ export function SearchForm({ onSearch, isLoading, initialKeywords = '', initialS
 
             // Immediate submit for Context Mode (no debounce needed as it's explicit)
             if (isContextMode) {
-                onSearch(keywords.trim(), sort, time, true, strictness);
+                onSearch(keywords.trim(), sort, time, true, limit);
                 return;
             }
 
             debounceTimer.current = setTimeout(() => {
-                onSearch(keywords.trim(), sort, time, false);
+                onSearch(keywords.trim(), sort, time, false, limit);
             }, 100);
         },
-        [keywords, sort, time, isContextMode, onSearch]
+        [keywords, sort, time, isContextMode, limit, onSearch]
     );
 
     const handleKeyDown = useCallback(
@@ -65,10 +65,10 @@ export function SearchForm({ onSearch, isLoading, initialKeywords = '', initialS
             if (e.key === 'Enter') {
                 e.preventDefault();
                 if (!keywords.trim() || isLoading) return;
-                onSearch(keywords.trim(), sort, time, isContextMode, isContextMode ? strictness : undefined);
+                onSearch(keywords.trim(), sort, time, isContextMode, limit);
             }
         },
-        [keywords, sort, time, isContextMode, strictness, isLoading, onSearch]
+        [keywords, sort, time, isContextMode, limit, isLoading, onSearch]
     );
 
     return (
@@ -106,29 +106,6 @@ export function SearchForm({ onSearch, isLoading, initialKeywords = '', initialS
                     disabled={isLoading}
                 />
             </div>
-
-            {/* Strictness Slider — only in Context Mode */}
-            {isContextMode && (
-                <div className="flex items-center gap-3 px-1">
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0">
-                        <SlidersHorizontal className="h-3.5 w-3.5 text-purple-500" />
-                        <span className="font-medium">Strictness</span>
-                    </div>
-                    <input
-                        type="range"
-                        min="0.50"
-                        max="0.95"
-                        step="0.05"
-                        value={strictness}
-                        onChange={(e) => setStrictness(parseFloat(e.target.value))}
-                        className="flex-1 h-1.5 rounded-full appearance-none cursor-pointer accent-purple-500 bg-purple-500/20"
-                        aria-label="Semantic filter strictness"
-                    />
-                    <span className="text-xs font-mono text-purple-500 w-[70px] text-right shrink-0">
-                        {strictness <= 0.55 ? 'Lenient' : strictness <= 0.70 ? 'Normal' : strictness <= 0.85 ? 'Strict' : 'Very Strict'}
-                    </span>
-                </div>
-            )}
 
             {/* Sort + Search Row */}
             <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
@@ -186,6 +163,19 @@ export function SearchForm({ onSearch, isLoading, initialKeywords = '', initialS
                         <SelectItem value="month">Last Month</SelectItem>
                         <SelectItem value="year">Last Year</SelectItem>
                         <SelectItem value="all">Lifetime</SelectItem>
+                    </SelectContent>
+                </Select>
+
+                {/* Post Count Select */}
+                <Select value={limit.toString()} onValueChange={(val) => setLimit(parseInt(val))}>
+                    <SelectTrigger className="w-full sm:w-[140px] h-10 bg-muted/50 border-0 focus:ring-1 focus:ring-primary/20">
+                        <span className="text-muted-foreground mr-2">📊</span>
+                        <SelectValue placeholder="Post Count" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="25">25 Posts</SelectItem>
+                        <SelectItem value="50">50 Posts</SelectItem>
+                        <SelectItem value="100">100 Posts (Max)</SelectItem>
                     </SelectContent>
                 </Select>
 

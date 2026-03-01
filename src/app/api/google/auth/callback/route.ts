@@ -12,18 +12,32 @@ export async function GET(request: NextRequest) {
         const { searchParams } = new URL(request.url);
         const code = searchParams.get('code');
         const error = searchParams.get('error');
+        const returnedState = searchParams.get('state');
+        const expectedState = request.cookies.get('google_oauth_state')?.value;
 
         if (error) {
             // User denied access or other OAuth error
             const redirectUrl = new URL('/settings', request.url);
             redirectUrl.searchParams.set('error', 'Google authentication was cancelled.');
-            return NextResponse.redirect(redirectUrl);
+            const response = NextResponse.redirect(redirectUrl);
+            response.cookies.delete('google_oauth_state');
+            return response;
         }
 
         if (!code) {
             const redirectUrl = new URL('/settings', request.url);
             redirectUrl.searchParams.set('error', 'No authorization code received.');
-            return NextResponse.redirect(redirectUrl);
+            const response = NextResponse.redirect(redirectUrl);
+            response.cookies.delete('google_oauth_state');
+            return response;
+        }
+
+        if (!returnedState || !expectedState || returnedState !== expectedState) {
+            const redirectUrl = new URL('/settings', request.url);
+            redirectUrl.searchParams.set('error', 'Invalid OAuth state. Please try connecting again.');
+            const response = NextResponse.redirect(redirectUrl);
+            response.cookies.delete('google_oauth_state');
+            return response;
         }
 
         // Exchange code for tokens
@@ -43,12 +57,15 @@ export async function GET(request: NextRequest) {
             maxAge: 60 * 60 * 24 * 30, // 30 days
             path: '/',
         });
+        response.cookies.delete('google_oauth_state');
 
         return response;
     } catch (error) {
         console.error('Google OAuth callback error:', error);
         const redirectUrl = new URL('/settings', request.url);
         redirectUrl.searchParams.set('error', 'Failed to connect Google account. Please try again.');
-        return NextResponse.redirect(redirectUrl);
+        const response = NextResponse.redirect(redirectUrl);
+        response.cookies.delete('google_oauth_state');
+        return response;
     }
 }

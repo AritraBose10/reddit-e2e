@@ -1,9 +1,9 @@
 
-import { NextRequest, NextResponse } from 'next/server';
-import { rateLimiter } from '@/lib/rate-limiter';
 import { cacheGet, cacheSet, makeCacheKey, TTL } from '@/lib/cache';
+import { rateLimiter } from '@/lib/rate-limiter';
 import { searchReddit } from '@/lib/reddit';
 import { SearchResponse } from '@/types';
+import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
     try {
@@ -12,6 +12,13 @@ export async function GET(request: NextRequest) {
         const keywords = searchParams.get('keywords')?.trim();
         const sort = searchParams.get('sort') as 'top' | 'hot' | 'relevance' | null;
         const time = searchParams.get('time') || 'all';
+        const limitParam = searchParams.get('limit') || '100';
+
+        let limit = parseInt(limitParam, 10);
+        // Validate limit is between 1 and 100
+        if (isNaN(limit) || limit < 1 || limit > 100) {
+            limit = 100;
+        }
 
         // Validate inputs
         if (!keywords || keywords.length === 0) {
@@ -39,11 +46,17 @@ export async function GET(request: NextRequest) {
         const sortType = sort === 'hot' ? 'hot' : sort === 'relevance' ? 'relevance' : 'top'; // Default to 'top'
 
         // Check cache first
-        const cacheKey = makeCacheKey('reddit-search', keywords, sortType, time);
+        const cacheKey = makeCacheKey('reddit-search', keywords, sortType, time, limit.toString());
         const cached = await cacheGet(cacheKey);
 
         if (cached) {
-            return NextResponse.json(cached);
+            const cachedAt = typeof cached.cachedAt === 'number' ? cached.cachedAt : undefined;
+            const cacheAge = cachedAt ? Math.max(0, Math.floor((Date.now() - cachedAt) / 1000)) : undefined;
+            return NextResponse.json({
+                ...cached,
+                cached: true,
+                cacheAge,
+            });
         }
 
         // Check rate limit
@@ -68,15 +81,16 @@ export async function GET(request: NextRequest) {
         }
 
         // Fetch from Reddit
-        const posts = await searchReddit(keywords, 25, sortType, time);
+        const posts = await searchReddit(keywords, limit, sortType, time);
 
-        const response: SearchResponse = {
+        const response: SearchResponse & { cachedAt: number } = {
             posts,
             cached: false,
             cacheAge: 0,
             query: keywords,
             sort: sortType,
             totalResults: posts.length,
+            cachedAt: Date.now(),
         };
 
         // Cache the response
@@ -88,13 +102,14 @@ export async function GET(request: NextRequest) {
 
         // Handle specific error types
         if (error instanceof Error) {
-            if (error.message.includes('429') || error.message.includes('Too Many')) {
+            const lowerMessage = error.message.toLowerCase();
+            if (lowerMessage.includes('429') || lowerMessage.includes('too many')) {
                 return NextResponse.json(
                     { error: 'Reddit is rate limiting us. Please try again in a few seconds.' },
                     { status: 429 }
                 );
             }
-            if (error.message.includes('timeout') || error.message.includes('ECONNABORTED')) {
+            if (lowerMessage.includes('timeout') || lowerMessage.includes('econnaborted') || lowerMessage.includes('aborted')) {
                 return NextResponse.json(
                     { error: 'Reddit is taking too long to respond. Please try again.' },
                     { status: 504 }

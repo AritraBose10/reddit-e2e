@@ -27,16 +27,26 @@ function getOAuth2Client() {
 /**
  * Generate the Google OAuth consent URL.
  */
-export function getAuthUrl(): string {
+export function getAuthUrl(state?: string): { url: string; state: string } {
     const oauth2Client = getOAuth2Client();
-    const state = crypto.randomBytes(16).toString('hex');
+    const oauthState = state || crypto.randomBytes(16).toString('hex');
 
-    return oauth2Client.generateAuthUrl({
+    const url = oauth2Client.generateAuthUrl({
         access_type: 'offline',
         scope: SCOPES,
-        state,
+        state: oauthState,
         prompt: 'consent',
     });
+
+    return { url, state: oauthState };
+}
+
+function getEncryptionKey(): Buffer {
+    const secret = process.env.NEXTAUTH_SECRET;
+    if (!secret) {
+        throw new Error('Missing NEXTAUTH_SECRET');
+    }
+    return crypto.scryptSync(secret, 'salt', 32);
 }
 
 /**
@@ -78,8 +88,7 @@ export async function refreshAccessToken(refreshToken: string): Promise<GoogleAu
  * Encrypt tokens for secure cookie storage.
  */
 export function encryptTokens(tokens: GoogleAuthTokens): string {
-    const key = process.env.NEXTAUTH_SECRET || 'default-secret-change-me-now!!!';
-    const keyBuffer = crypto.scryptSync(key, 'salt', 32);
+    const keyBuffer = getEncryptionKey();
     const iv = crypto.randomBytes(16);
     const cipher = crypto.createCipheriv('aes-256-cbc', keyBuffer, iv);
     let encrypted = cipher.update(JSON.stringify(tokens), 'utf8', 'hex');
@@ -92,9 +101,9 @@ export function encryptTokens(tokens: GoogleAuthTokens): string {
  */
 export function decryptTokens(encryptedData: string): GoogleAuthTokens | null {
     try {
-        const key = process.env.NEXTAUTH_SECRET || 'default-secret-change-me-now!!!';
-        const keyBuffer = crypto.scryptSync(key, 'salt', 32);
+        const keyBuffer = getEncryptionKey();
         const [ivHex, encrypted] = encryptedData.split(':');
+        if (!ivHex || !encrypted) return null;
         const iv = Buffer.from(ivHex, 'hex');
         const decipher = crypto.createDecipheriv('aes-256-cbc', keyBuffer, iv);
         let decrypted = decipher.update(encrypted, 'hex', 'utf8');

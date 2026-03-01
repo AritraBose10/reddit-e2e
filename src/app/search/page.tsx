@@ -5,23 +5,24 @@
 
 'use client';
 
-import { useState, useCallback } from 'react';
-import { SearchForm } from '@/components/SearchForm';
-import { ResultsTable } from '@/components/ResultsTable';
 import { ExportButtons } from '@/components/ExportButtons';
-import { useRedditSearch } from '@/hooks/useRedditSearch';
-import { useContextSearch } from '@/hooks/useContextSearch';
-import { Card, CardContent } from '@/components/ui/card';
-import { AlertCircle, SearchX, RefreshCw } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import GenerateIdeasButton from '@/components/GenerateIdeasButton';
 import IdeasList from '@/components/IdeasList';
+import { ResultsTable } from '@/components/ResultsTable';
+import { SearchForm } from '@/components/SearchForm';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { useContextSearch } from '@/hooks/useContextSearch';
+import { useRedditSearch } from '@/hooks/useRedditSearch';
 import { ContentIdea, RedditPost } from '@/types';
+import { AlertCircle, RefreshCw, SearchX } from 'lucide-react';
+import { useCallback, useState } from 'react';
 
 export default function SearchPage() {
     const [searchKeywords, setSearchKeywords] = useState('');
     const [searchSort, setSearchSort] = useState<'top' | 'hot' | 'relevance'>('top');
     const [searchTime, setSearchTime] = useState('all');
+    const [searchLimit, setSearchLimit] = useState<number>(100);
     const [hasSearched, setHasSearched] = useState(false);
     const [isContextMode, setIsContextMode] = useState(false);
     const [generatedIdeas, setGeneratedIdeas] = useState<ContentIdea[]>([]);
@@ -31,7 +32,8 @@ export default function SearchPage() {
     const standardSearch = useRedditSearch(
         !isContextMode ? searchKeywords : '',
         searchSort,
-        searchTime
+        searchTime,
+        searchLimit
     );
 
     // Context Search Hook
@@ -43,10 +45,11 @@ export default function SearchPage() {
     const error = isContextMode ? contextSearch.error : standardSearch.error;
     const data = isContextMode ? contextSearch.data : standardSearch.data;
 
-    const handleSearch = useCallback((keywords: string, sort: 'top' | 'hot' | 'relevance', time?: string, contextMode: boolean = false, strictness?: number) => {
+    const handleSearch = useCallback((keywords: string, sort: 'top' | 'hot' | 'relevance', time?: string, contextMode: boolean = false, limit: number = 100) => {
         setSearchKeywords(keywords);
         setSearchSort(sort);
         if (time) setSearchTime(time);
+        setSearchLimit(limit);
         setHasSearched(true);
         setIsContextMode(contextMode);
         setGeneratedIdeas([]);
@@ -54,7 +57,7 @@ export default function SearchPage() {
 
         // If context mode, trigger it explicitly
         if (contextMode) {
-            contextSearch.search(keywords, strictness, sort, time);
+            contextSearch.search(keywords, sort, time);
         }
     }, [contextSearch]);
 

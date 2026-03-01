@@ -1,0 +1,15 @@
+.env.example
+.env.local
+BUG_ANALYSIS.md
+IMPLEMENTATION_SUMMARY.md
+GITHUB_VERIFICATION_CHECKLIST.md
+docs/
+.git/
+.gitignore
+README.md
+*.md
+retest*.txt
+test_output*.json
+pipeline_test_result.json
+testsprite_tests/
+.agent/
