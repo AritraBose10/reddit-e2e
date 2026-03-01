@@ -1,5 +1,4 @@
 
-import { cacheGet, cacheSet, makeCacheKey, TTL } from '@/lib/cache';
 import { rateLimiter } from '@/lib/rate-limiter';
 import { searchReddit } from '@/lib/reddit';
 import { SearchResponse } from '@/types';
@@ -45,20 +44,6 @@ export async function GET(request: NextRequest) {
 
         const sortType = sort === 'hot' ? 'hot' : sort === 'relevance' ? 'relevance' : 'top'; // Default to 'top'
 
-        // Check cache first
-        const cacheKey = makeCacheKey('reddit-search', keywords, sortType, time, limit.toString());
-        const cached = await cacheGet(cacheKey);
-
-        if (cached) {
-            const cachedAt = typeof cached.cachedAt === 'number' ? cached.cachedAt : undefined;
-            const cacheAge = cachedAt ? Math.max(0, Math.floor((Date.now() - cachedAt) / 1000)) : undefined;
-            return NextResponse.json({
-                ...cached,
-                cached: true,
-                cacheAge,
-            });
-        }
-
         // Check rate limit
         const ip = request.headers.get('x-forwarded-for') ||
             request.headers.get('x-real-ip') ||
@@ -83,18 +68,13 @@ export async function GET(request: NextRequest) {
         // Fetch from Reddit
         const posts = await searchReddit(keywords, limit, sortType, time);
 
-        const response: SearchResponse & { cachedAt: number } = {
+        const response: SearchResponse = {
             posts,
             cached: false,
-            cacheAge: 0,
             query: keywords,
             sort: sortType,
             totalResults: posts.length,
-            cachedAt: Date.now(),
-        };
-
-        // Cache the response
-        await cacheSet(cacheKey, response, TTL.SEARCH_RESULTS);
+        };        
 
         return NextResponse.json(response);
     } catch (error) {

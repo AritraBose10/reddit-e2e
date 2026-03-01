@@ -21,8 +21,10 @@ export function useRedditSearch(keywords: string, sort: 'top' | 'hot' | 'relevan
         queryKey: ['reddit-search', keywords, sort, time, limit],
         queryFn: () => searchReddit(keywords, sort, time, limit),
         enabled: keywords.length > 0,
-        staleTime: 5 * 60 * 1000, // 5 minutes — matches server cache TTL
+        staleTime: 0,
+        gcTime: 0,
         retry: 2,
         retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
     });
 }
+

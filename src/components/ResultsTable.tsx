@@ -52,8 +52,8 @@ function formatNumber(num: number): string {
     return num.toString();
 }
 
-function SortIcon({ field, sortConfig }: { field: SortField; sortConfig: SortConfig }) {
-    if (sortConfig.field !== field) {
+function SortIcon({ field, sortConfig }: { field: SortField; sortConfig: SortConfig | null }) {
+    if (!sortConfig || sortConfig.field !== field) {
         return <ArrowUpDown className="ml-1 h-3.5 w-3.5 text-muted-foreground/50" />;
     }
     return sortConfig.direction === 'asc' ? (
@@ -74,10 +74,7 @@ export function ResultsTable({
     query,
     onSelectionChange,
 }: ResultsTableProps) {
-    const [sortConfig, setSortConfig] = useState<SortConfig>({
-        field: 'upvotes',
-        direction: 'desc',
-    });
+    const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
     const hasRelevance = useMemo(() => posts.some(p => p.relevanceScore !== undefined), [posts]);
@@ -89,18 +86,6 @@ export function ResultsTable({
         [posts]
     );
 
-    // Auto-switch to relevance sorting when results arrive or have relevance score
-    useEffect(() => {
-        if (hasRelevance) {
-            // Sort by relevance by default when available
-            setSortConfig({ field: 'relevance', direction: 'desc' });
-        } else {
-            // Otherwise sort by engagement (upvotes first, then comments)
-            setSortConfig({ field: 'upvotes', direction: 'desc' });
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [postsFingerprint, hasRelevance]);
-
     // Clear selection whenever the result set truly changes (new search).
     // Do NOT call onSelectionChange here — that would trigger a parent
     // re-render → new array ref → this effect fires again → infinite loop.
@@ -111,13 +96,19 @@ export function ResultsTable({
     }, [postsFingerprint]);
 
     const handleSort = (field: SortField) => {
-        setSortConfig((prev) => ({
-            field,
-            direction: prev.field === field && prev.direction === 'desc' ? 'asc' : 'desc',
-        }));
+        setSortConfig((prev) => {
+            if (!prev || prev.field !== field) {
+                return { field, direction: 'desc' };
+            }
+            return {
+                field,
+                direction: prev.direction === 'desc' ? 'asc' : 'desc',
+            };
+        });
     };
 
     const sortedPosts = useMemo(() => {
+        if (!sortConfig) return posts;
         const sorted = [...posts];
         sorted.sort((a, b) => {
             const dir = sortConfig.direction === 'asc' ? 1 : -1;
