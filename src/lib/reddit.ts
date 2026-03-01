@@ -1,5 +1,4 @@
 
-import { heuristicScore } from '@/lib/heuristics';
 import { RedditPost } from '@/types';
 
 const REDDIT_SEARCH_URL = 'https://www.reddit.com/search.json';
@@ -132,16 +131,7 @@ export async function searchReddit(
             filtered = posts.filter((p: RedditPost) => new Date(p.created).getTime() >= cutoffMs);
         }
 
-        // Calculate relevance scores for all posts (upvotes, comments, recency)
-        const scored = filtered.map((post: RedditPost) => ({
-            ...post,
-            relevanceScore: heuristicScore(post, query.split(/\s+/))
-        }));
-
-        // Sort by relevance score descending, then return the limit
-        scored.sort((a: RedditPost & { relevanceScore?: number }, b: RedditPost & { relevanceScore?: number }) => (b.relevanceScore || 0) - (a.relevanceScore || 0));
-
-        return scored.slice(0, limit);
+        return filtered.slice(0, limit);
 
     } catch (error) {
         console.error('Reddit Search Failed:', error);
