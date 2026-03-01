@@ -91,6 +91,12 @@ export async function GET(request: NextRequest) {
                     { status: 429 }
                 );
             }
+            if (lowerMessage.includes('403') || lowerMessage.includes('forbidden')) {
+                return NextResponse.json(
+                    { error: 'Reddit blocked this server request (403). Retrying shortly usually works.' },
+                    { status: 502 }
+                );
+            }
             if (lowerMessage.includes('timeout') || lowerMessage.includes('econnaborted') || lowerMessage.includes('aborted')) {
                 return NextResponse.json(
                     { error: 'Reddit is taking too long to respond. Please try again.' },

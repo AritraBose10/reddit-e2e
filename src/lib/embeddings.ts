@@ -7,7 +7,7 @@ const HF_API_URLS = [
     'https://router.huggingface.co/hf-inference/models/BAAI/bge-base-en-v1.5',
     'https://api-inference.huggingface.co/models/BAAI/bge-base-en-v1.5',
 ];
-const HF_USER_AGENT = 'reddit-scraper/1.0 (+https://github.com/AritraBose10/reddit)';
+const HF_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36';
 const EMBEDDING_BATCH_SIZE = 10;
 
 class ConcurrencyLimiter {
