@@ -45,9 +45,11 @@ export async function GET(request: NextRequest) {
         const sortType = sort === 'hot' ? 'hot' : sort === 'relevance' ? 'relevance' : 'top'; // Default to 'top'
 
         // Check rate limit
-        const ip = request.headers.get('x-forwarded-for') ||
-            request.headers.get('x-real-ip') ||
-            'anonymous';
+        const forwardedFor = request.headers.get('x-forwarded-for');
+        const realIp = request.headers.get('x-real-ip');
+        const firstForwardedIp = forwardedFor?.split(',')[0]?.trim();
+        const userAgent = request.headers.get('user-agent') || 'unknown-ua';
+        const ip = firstForwardedIp || realIp || `anonymous:${userAgent}`;
         const rateCheck = rateLimiter.check(ip);
 
         if (!rateCheck.allowed) {
@@ -93,6 +95,12 @@ export async function GET(request: NextRequest) {
                 return NextResponse.json(
                     { error: 'Reddit is taking too long to respond. Please try again.' },
                     { status: 504 }
+                );
+            }
+            if (lowerMessage.includes('server error') || lowerMessage.includes('502') || lowerMessage.includes('503')) {
+                return NextResponse.json(
+                    { error: 'Reddit is temporarily unavailable. Please retry shortly.' },
+                    { status: 502 }
                 );
             }
         }

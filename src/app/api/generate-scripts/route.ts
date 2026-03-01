@@ -19,6 +19,19 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ ...scripts, rateLimit });
     } catch (error) {
         console.error('Error in generate-scripts route:', error);
+        const msg = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+        if (msg.includes('429') || msg.includes('rate limit')) {
+            return NextResponse.json(
+                { error: 'AI rate limit reached. Please wait and retry.' },
+                { status: 429 }
+            );
+        }
+        if (msg.includes('timeout') || msg.includes('timed out') || msg.includes('aborted')) {
+            return NextResponse.json(
+                { error: 'Script generation timed out. Please retry.' },
+                { status: 504 }
+            );
+        }
         return NextResponse.json(
             { error: 'Failed to generate video scripts.' },
             { status: 500 }

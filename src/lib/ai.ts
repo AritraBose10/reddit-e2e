@@ -98,21 +98,29 @@ async function callGroq(
     const timeoutId = setTimeout(() => controller.abort(), 12000); // 12s timeout
 
     try {
-        const res = await fetch(GROQ_API_URL, {
-            method: 'POST',
-            cache: 'no-store',
-            signal: controller.signal,
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`,
-            },
-            body: JSON.stringify({
-                model,
-                messages,
-                temperature,
-                ...(responseFormat ? { response_format: responseFormat } : {}),
-            }),
-        });
+        let res: Response;
+        try {
+            res = await fetch(GROQ_API_URL, {
+                method: 'POST',
+                cache: 'no-store',
+                signal: controller.signal,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`,
+                },
+                body: JSON.stringify({
+                    model,
+                    messages,
+                    temperature,
+                    ...(responseFormat ? { response_format: responseFormat } : {}),
+                }),
+            });
+        } catch (error) {
+            if (error instanceof Error && (error.name === 'AbortError' || error.message.toLowerCase().includes('aborted'))) {
+                throw new Error('Groq request timed out');
+            }
+            throw error;
+        }
 
         // Extract rate limit headers
         const rateLimit: RateLimitInfo = {
@@ -123,6 +131,12 @@ async function callGroq(
 
         if (!res.ok) {
             const errBody = await res.text();
+            if (res.status === 429) {
+                throw new Error(`Groq rate limit 429: ${errBody}`);
+            }
+            if (res.status >= 500) {
+                throw new Error(`Groq upstream ${res.status}: ${errBody}`);
+            }
             throw new Error(`Groq API error ${res.status}: ${errBody}`);
         }
 

@@ -71,6 +71,19 @@ export async function POST(request: NextRequest) {
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         console.error('Error in analyze route:', errorMessage, error);
+        const lower = errorMessage.toLowerCase();
+        if (lower.includes('429') || lower.includes('rate limit')) {
+            return NextResponse.json(
+                { error: 'AI rate limit reached. Please wait and retry.' },
+                { status: 429 }
+            );
+        }
+        if (lower.includes('timeout') || lower.includes('timed out') || lower.includes('aborted')) {
+            return NextResponse.json(
+                { error: 'AI processing timed out. Please retry.' },
+                { status: 504 }
+            );
+        }
         return NextResponse.json(
             { error: `Failed to generate ideas: ${errorMessage}` },
             { status: 500 }

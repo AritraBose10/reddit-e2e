@@ -104,6 +104,25 @@ export async function POST(req: NextRequest) {
 
     } catch (error: any) {
         console.error('Filter API Error:', error);
+        const msg = (error?.message || '').toLowerCase();
+        if (msg.includes('429') || msg.includes('rate limit')) {
+            return NextResponse.json(
+                { error: 'AI rate limit reached. Please wait and retry.', details: error.message },
+                { status: 429 }
+            );
+        }
+        if (msg.includes('timeout') || msg.includes('timed out') || msg.includes('aborted')) {
+            return NextResponse.json(
+                { error: 'Search processing timed out. Please retry.', details: error.message },
+                { status: 504 }
+            );
+        }
+        if (msg.includes('upstream 5') || msg.includes('server error') || msg.includes('502') || msg.includes('503')) {
+            return NextResponse.json(
+                { error: 'Upstream service is temporarily unavailable. Please retry shortly.', details: error.message },
+                { status: 502 }
+            );
+        }
         return NextResponse.json(
             { error: 'Search Pipeline Failed', details: error.message },
             { status: 500 }

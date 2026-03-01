@@ -34,16 +34,28 @@ export async function POST(req: NextRequest) {
     } catch (error: any) {
         console.error('Intent API Error:', error);
 
-        const msg = error.message || '';
-        if (msg.includes('timed out')) {
+        const msg = (error.message || '').toLowerCase();
+        if (msg.includes('timed out') || msg.includes('timeout') || msg.includes('aborted')) {
             return NextResponse.json(
                 { error: 'Intent analysis timed out. Please try again.' },
                 { status: 504 }
             );
         }
+        if (msg.includes('429') || msg.includes('rate limit')) {
+            return NextResponse.json(
+                { error: 'AI rate limit reached. Please wait and retry.' },
+                { status: 429 }
+            );
+        }
+        if (msg.includes('upstream 5') || msg.includes('server error') || msg.includes('502') || msg.includes('503')) {
+            return NextResponse.json(
+                { error: 'Intent provider is temporarily unavailable. Please retry shortly.' },
+                { status: 502 }
+            );
+        }
 
         return NextResponse.json(
-            { error: 'Failed to analyze intent', details: msg },
+            { error: 'Failed to analyze intent', details: error.message || '' },
             { status: 500 }
         );
     }

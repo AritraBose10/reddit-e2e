@@ -1,6 +1,6 @@
 /**
  * IP-based rate limiter for Reddit API requests.
- * Enforces 1 request per 2 seconds per IP to respect Reddit's guidelines.
+ * Enforces a lightweight per-IP burst limit to respect Reddit's guidelines.
  */
 
 interface RateLimitEntry {
@@ -13,7 +13,7 @@ class RateLimiter {
     private readonly windowMs: number;
     private readonly maxRequests: number;
 
-    constructor(windowMs = 2000, maxRequests = 1) {
+    constructor(windowMs = 2000, maxRequests = 2) {
         this.windowMs = windowMs;
         this.maxRequests = maxRequests;
 
@@ -65,5 +65,6 @@ class RateLimiter {
     }
 }
 
-// Singleton instance — 1 request per 2 seconds per IP
-export const rateLimiter = new RateLimiter(2000, 1);
+// Singleton instance - allows a small burst (2 req / 2s) per IP.
+export const rateLimiter = new RateLimiter(2000, 2);
+
